@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Policía Nacional del Ecuador – Evaluación de Especialistas</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f6f9; color: #333; }
+    
+    /* Pantalla de acceso */
+    .access-screen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; background: linear-gradient(135deg, #004d40, #00695c);
+    }
+    .access-card {
+      background: white; padding: 3rem 2rem; border-radius: 1rem; box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+      text-align: center; width: 90%; max-width: 450px;
+    }
+    .access-card img { width: 80px; margin-bottom: 1rem; } /* opcional */
+    .access-card h1 { color: #004d40; margin-bottom: 0.5rem; }
+    .access-card p { color: #555; margin-bottom: 2rem; }
+    .access-card select, .access-card input {
+      width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 0.5rem;
+      font-size: 1rem;
+    }
+    .btn {
+      background: #004d40; color: white; border: none; padding: 0.8rem 1.5rem; border-radius: 0.5rem;
+      font-size: 1rem; cursor: pointer; transition: background 0.3s; width: 100%; margin-top: 0.5rem;
+    }
+    .btn:hover { background: #00695c; }
+    .btn.secondary { background: #607d8b; }
+    .error-msg { color: #c62828; margin-top: 0.5rem; font-weight: bold; }
+
+    /* Panel principal */
+    .main-panel { display: none; padding: 2rem; max-width: 1100px; margin: 0 auto; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+    .header h2 { color: #004d40; }
+    .logout-btn { background: #b71c1c; color: white; border: none; padding: 0.5rem 1.2rem; border-radius: 0.3rem; cursor: pointer; }
+    .section { background: white; border-radius: 0.8rem; padding: 1.8rem; margin-bottom: 2rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .section h3 { color: #004d40; margin-bottom: 1rem; border-bottom: 2px solid #004d40; padding-bottom: 0.4rem; }
+    .temario-list { max-height: 400px; overflow-y: auto; padding: 0.5rem; background: #fafafa; border-radius: 0.4rem; }
+    .temario-item { padding: 0.7rem; border-bottom: 1px solid #e0e0e0; cursor: pointer; }
+    .temario-item:hover { background: #e0f2f1; }
+    .case-box, .answer-box, .model-answer-box, .feedback-box { margin-top: 1rem; }
+    textarea { width: 100%; height: 200px; padding: 0.8rem; border: 1px solid #ccc; border-radius: 0.5rem; resize: vertical; font-size: 0.95rem; }
+    .loading { text-align: center; color: #004d40; margin: 1rem 0; }
+    .btn-group { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1rem; }
+    .btn-group .btn { width: auto; }
+    pre { white-space: pre-wrap; background: #f5f5f5; padding: 1rem; border-radius: 0.5rem; }
+  </style>
+</head>
+<body>
+
+<!-- ==================== PANTALLA DE ACCESO ==================== -->
+<div id="accessScreen" class="access-screen">
+  <div class="access-card">
+    <h1>Policía Nacional del Ecuador</h1>
+    <p>Evaluación para Ingenieros Aspirantes a Especialistas</p>
+    <input type="text" id="cedulaInput" placeholder="Número de cédula" />
+    <select id="carreraSelect">
+      <option value="">Seleccione carrera</option>
+      <option>Ingeniería Civil</option>
+      <option>Ingeniería Industrial</option>
+      <option>Ingeniería Mecánica</option>
+      <option>Ingeniería Automotriz</option>
+    </select>
+    <button class="btn" onclick="login()">Ingresar</button>
+    <div id="loginError" class="error-msg"></div>
+  </div>
+</div>
+
+<!-- ==================== PANEL PRINCIPAL (oculto al inicio) ==================== -->
+<div id="mainPanel" class="main-panel">
+  <div class="header">
+    <h2>Panel del Aspirante – <span id="careerDisplay"></span></h2>
+    <button class="logout-btn" onclick="logout()">Cerrar sesión</button>
+  </div>
+
+  <!-- TEMARIO -->
+  <div class="section">
+    <h3>Temario de 50 temas – <span id="careerTemarioTitle"></span></h3>
+    <input type="text" id="searchTema" placeholder="Buscar tema..." style="width:100%; padding:0.5rem; margin-bottom:0.5rem;" onkeyup="filterTemas()" />
+    <div id="temarioContainer" class="temario-list"></div>
+  </div>
+
+  <!-- CASO PRÁCTICO -->
+  <div class="section">
+    <h3>Caso Práctico</h3>
+    <div id="caseContent" class="case-box">Presione "Crear caso práctico" para comenzar.</div>
+    <div class="btn-group">
+      <button class="btn" onclick="loadCaseFromBank()">Crear caso práctico (banco)</button>
+      <button class="btn secondary" onclick="generateCaseWithAI()">Nuevo caso con IA</button>
+    </div>
+    <div id="caseLoading" class="loading" style="display:none;">Generando caso, por favor espere...</div>
+  </div>
+
+  <!-- ÁREA DE RESPUESTA -->
+  <div class="section">
+    <h3>Tu Respuesta</h3>
+    <textarea id="userAnswer" placeholder="Escribe aquí tu respuesta técnica detallada..."></textarea>
+  </div>
+
+  <!-- SOLUCIÓN MODELO Y EVALUACIÓN -->
+  <div class="section">
+    <h3>Solución y Retroalimentación</h3>
+    <div class="btn-group">
+      <button class="btn" onclick="showModelAnswer()">Ver respuesta técnica</button>
+      <button class="btn secondary" onclick="reviewMyAnswer()">Revisar mi respuesta (IA)</button>
+    </div>
+    <div id="modelAnswerBox" class="model-answer-box" style="display:none;">
+      <h4>Respuesta técnica:</h4>
+      <div id="modelAnswerContent"></div>
+    </div>
+    <div id="feedbackBox" class="feedback-box" style="display:none;">
+      <h4>Evaluación de tu respuesta:</h4>
+      <div id="feedbackContent"></div>
+    </div>
+    <div id="feedbackLoading" class="loading" style="display:none;">Analizando tu respuesta, espera unos segundos...</div>
+  </div>
+</div>
+
+<script>
+  // ==================== CONFIGURACIÓN ====================
+  const API_KEY = 'sk-tu-api-key-aqui'; // ¡REEMPLAZAR con tu API key real!
+  const API_URL = 'https://api.deepseek.com/v1/chat/completions';
+  const MODEL = 'deepseek-v4-flash'; // DeepSeek V4 Flash
+
+  // Lista de cédulas y carreras autorizadas
+  const ALLOWED_USERS = [
+    { cedula: '1711111111', carrera: 'Ingeniería Civil' },
+    { cedula: '1712222222', carrera: 'Ingeniería Industrial' },
+    { cedula: '1710280942', carrera: 'Ingeniería Mecánica' },
+    { cedula: '1713333333', carrera: 'Ingeniería Automotriz' }
+  ];
+
+  // === TEMARIOS (50 temas por carrera) ===
+  const TEMARIOS = {
+    'Ingeniería Civil': [
+    "1. Mecánica de suelos y cimentaciones en obras policiales (cuarteles, muros perimetrales).",
+    "2. Diseño de estructuras de hormigón armado para edificios de seguridad.",
+    "3. Estructuras metálicas ligeras para garitas y torres de vigilancia.",
+    "4. Patología de construcciones y rehabilitación de cuarteles antiguos.",
+    "5. Hidráulica fluvial y obras de protección contra inundaciones en destacamentos.",
+    "6. Diseño y mantenimiento de pistas de aterrizaje en zonas fronterizas.",
+    "7. Geotecnia aplicada a taludes y estabilidad en destacamentos andinos.",
+    "8. Normativa INEN de construcción sismorresistente (NEC) y su aplicación en cuarteles.",
+    "9. Topografía y geodesia para levantamiento de escenas del crimen.",
+    "10. Materiales de construcción alternativos y sostenibles en climas extremos.",
+    "11. Control de calidad del hormigón en obra (ensayos destructivos y no destructivos).",
+    "12. Puentes militares provisionales: cálculo y montaje.",
+    "13. Diseño de pavimentos para estacionamientos y pistas de entrenamiento táctico.",
+    "14. Sistemas de drenaje pluvial en instalaciones policiales.",
+    "15. Normativa de accesibilidad universal en edificios públicos.",
+    "16. Peritaje estructural post-sismo en cuarteles y comisarías.",
+    "17. Instalaciones eléctricas provisionales para campamentos de emergencia.",
+    "18. Cálculo de sobrecargas por acumulación de nieve en destacamentos de altura.",
+    "19. Impermeabilización y membranas asfálticas en techos de armerías.",
+    "20. Análisis estructural de celdas de detención y seguridad penitenciaria.",
+    "21. Diseño de muros de contención con gaviones en laderas inestables.",
+    "22. Evaluación de riesgos geológicos en ubicación de nuevas unidades.",
+    "23. Métodos de refuerzo estructural con fibra de carbono en cuarteles.",
+    "24. Cimentaciones profundas para torres de telecomunicaciones policiales.",
+    "25. Cubicación y presupuestos en proyectos de infraestructura policial.",
+    "26. Diseño de canchas y pistas de reacción con requisitos de impacto.",
+    "27. Instalaciones hidrosanitarias en destacamentos rurales sin red pública.",
+    "28. Normativa de prevención de incendios en edificios policiales (NEC-HS).",
+    "29. Pathología del acero de refuerzo por corrosión en clima tropical.",
+    "30. Replanteo topográfico para instalación de antenas de comunicación.",
+    "31. Diseño de depósitos para combustibles y almacenamiento de explosivos.",
+    "32. Cálculo de estructuras temporales para operativos de control en carreteras.",
+    "33. Métodos de auscultación dinámica de puentes con paso de vehículos tácticos.",
+    "34. Legislación de contratación de obra pública y fiscalización (LOSNCP).",
+    "35. Impacto ambiental en construcción de cuarteles en zonas protegidas.",
+    "36. Sistemas de tratamiento de aguas residuales en destacamentos aislados.",
+    "37. Materiales compuestos en blindajes de muros y barreras de seguridad.",
+    "38. Diseño de hangares y mantenimiento de aeronaves policiales.",
+    "39. Normas de seguridad estructural para polvorines y armerías.",
+    "40. Planificación urbana y ubicación estratégica de unidades móviles.",
+    "41. Patología de pavimentos de hormigón en zonas de alto tráfico pesado.",
+    "42. Métodos de evaluación de capacidad portante de suelos con penetrómetro.",
+    "43. Instalación de pararrayos y protección en destacamentos de montaña.",
+    "44. Cálculo de juntas sísmicas en edificios de la Policía Nacional.",
+    "45. Optimización de costos en proyectos de mantenimiento de infraestructura.",
+    "46. Uso de drones topográficos en reconocimiento de terrenos.",
+    "47. Diseño de rampas y accesos para vehículos blindados.",
+    "48. Normativa ecuatoriana de seguridad en gradas y escaleras de emergencia.",
+    "49. Estructuras modulares para despliegue rápido de unidades.",
+    "50. Ciclo de vida y mantenimiento de edificaciones institucionales."
+    ],
+    'Ingeniería Industrial': [
+    "1. Cadena de suministro de uniformes y equipo táctico policial.",
+    "2. Optimización de procesos en talleres de mantenimiento de flotas.",
+    "3. Control estadístico de calidad en recepción de armamento (ISO 2859).",
+    "4. Gestión de inventarios de repuestos y suministros críticos.",
+    "5. Estudio de tiempos y movimientos en procedimientos administrativos.",
+    "6. Logística de distribución de combustible a zonas fronterizas.",
+    "7. Distribución en planta de almacenes centrales de la Policía.",
+    "8. Análisis de costo-beneficio en adquisiciones de equipo (TCO).",
+    "9. Sistemas de gestión de calidad según ISO 9001 en procesos policiales.",
+    "10. Programación y control de la producción de uniformes.",
+    "11. Seguridad industrial y salud ocupacional en talleres de armas (IESS).",
+    "12. Ergonomía de puestos de trabajo en centros de monitoreo.",
+    "13. Simulación de procesos logísticos con software (discrete event).",
+    "14. Planificación de requerimiento de materiales (MRP) para mantenimiento.",
+    "15. Análisis de falla y confiabilidad de equipos de comunicación.",
+    "16. Gestión de residuos peligrosos en actividades policiales.",
+    "17. Métodos de pronóstico para demanda de servicios policiales.",
+    "18. Diseño de indicadores de gestión (KPI) para flotas vehiculares.",
+    "19. Lean Manufacturing aplicado a procesos de abastecimiento.",
+    "20. Six Sigma en reducción de errores en trámites de licencias.",
+    "21. Estudio de factibilidad para instalación de talleres regionales.",
+    "22. Logística inversa de equipos dañados y obsoletos.",
+    "23. Manejo de almacenes de evidencias (cadena de custodia).",
+    "24. Sistemas de información gerencial para toma de decisiones.",
+    "25. Evaluación de proveedores bajo criterios de calidad y costo.",
+    "26. Automatización de procesos administrativos (RPA) en RR.HH.",
+    "27. Análisis de riesgo operacional en traslado de valores.",
+    "28. Planificación estratégica y despliegue de objetivos (Hoshin Kanri).",
+    "29. Gestión del mantenimiento centrado en confiabilidad (RCM).",
+    "30. Balance de líneas de ensamble de chalecos antibalas.",
+    "31. Auditorías de calidad internas según normas INEN-ISO.",
+    "32. Localización óptima de centros de distribución regional.",
+    "33. Teoría de colas en ventanillas de atención al público.",
+    "34. Administración de proyectos con restricciones presupuestarias.",
+    "35. Estudio de impacto ambiental en logística (huella de carbono).",
+    "36. Negociación y contratación pública (LOSNCP, subasta inversa).",
+    "37. Diseño de experimentos para mejorar procesos de blindaje.",
+    "38. Costeo ABC (Activity Based Costing) en servicios policiales.",
+    "39. Planeación agregada de mantenimiento vehicular anual.",
+    "40. Sistemas de trazabilidad de armas y municiones.",
+    "41. Modelos de inventario con demanda incierta (punto de reorden).",
+    "42. Capacitación Lean Six Sigma para mandos medios.",
+    "43. Análisis envolvente de datos (DEA) para eficiencia de unidades.",
+    "44. Gestión de la cadena de frío para alimentos en destacamentos.",
+    "45. Diseño de cuadros de mando integral (Balanced Scorecard).",
+    "46. Metodología de las 5S en talleres de armería.",
+    "47. Just in Time en reposición de repuestos críticos.",
+    "48. Simulación de evacuación de edificios policiales.",
+    "49. Valoración de puestos de trabajo en estructura organizacional.",
+    "50. Ética y transparencia en la gestión de recursos públicos."
+    ],
+    'Ingeniería Mecánica': [
+    "1. Termodinámica aplicada a motores diésel y gasolina de vehículos patrulleros y tácticos.",
+    "2. Motores de combustión interna alternativos (GNV/GLP) en flotas policiales y su normativa ambiental ecuatoriana.",
+    "3. Sistemas de inyección electrónica y diagnóstico OBD-II en vehículos operativos.",
+    "4. Refrigeración y climatización de unidades móviles y cuarteles (zonas tropicales, costa, sierra).",
+    "5. Transferencia de calor en sistemas de escape, blindajes ligeros y compartimentos de armamento.",
+    "6. Dinámica vehicular y comportamiento en curvas, frenado y aceleración de patrulleros y vehículos 4x4 en terrenos andinos.",
+    "7. Transmisiones mecánicas, ejes, diferenciales y cajas de transferencia en vehículos todo terreno.",
+    "8. Suspensión, amortiguación y confort de marcha en operativos prolongados sobre calzada irregular.",
+    "9. Sistemas de frenos convencionales, ABS y de emergencia en vehículos de respuesta rápida.",
+    "10. Neumáticos, presión y desgaste; selección para asfalto, lastre y condiciones de altura en Ecuador.",
+    "11. Bastidores y carrocerías: fatiga, corrosión y refuerzos estructurales en patrulleros y furgones de traslado.",
+    "12. Blindaje vehicular (materiales compuestos, aceros especiales, vidrios) y su efecto en el centro de gravedad y desempeño.",
+    "13. Ensayos no destructivos (ultrasonido, líquidos penetrantes, partículas magnéticas) en componentes de armamento y equipo táctico.",
+    "14. Metalurgia de aceros utilizados en cascos, escudos antidisturbios y armazones de chalecos balísticos.",
+    "15. Análisis de fallas y fractura: peritaje mecánico en siniestros viales y fallas de material policial.",
+    "16. Mecánica de materiales aplicada a grilletes, barreras y elementos de seguridad perimetral.",
+    "17. Soldadura y procesos de unión en reparaciones estructurales de cuarteles, tanques y carrocerías.",
+    "18. Corrosión y recubrimientos protectores en climas húmedos tropicales y de altura de Ecuador.",
+    "19. Diseño de elementos de máquinas (ejes, chavetas, engranajes, rodamientos) en equipos de mantenimiento policial.",
+    "20. Rodamientos, lubricación y análisis de vibraciones en maquinaria de taller y vehículos de emergencia.",
+    "21. Hidráulica y neumática en equipos de rescate (cizallas, gatos, plataformas) e instalaciones auxiliares.",
+    "22. Bombas centrífugas y sistemas contra incendios (NFPA, normativa nacional) en destacamentos.",
+    "23. Fluidos de potencia en vehículos de carga y grúas del servicio logístico.",
+    "24. Metrología dimensional y calibración de instrumentos de medición en talleres de la Policía (norma INEN).",
+    "25. Control de calidad y muestreo (normas ISO 2859, ISO 3951) en recepción de repuestos y equipos adquiridos por el Estado.",
+    "26. Normativa INEN para vehículos, partes y equipos de seguridad: cumplimiento y fiscalización.",
+    "27. Legislación de contratación pública (LOSNCP, Reglamento) en adquisición de maquinaria, mantenimiento vehicular y servicios mecánicos.",
+    "28. Evaluación técnica de ofertas y pliegos para licitaciones de vehículos policiales y talleres.",
+    "29. Administración de flotas vehiculares estatales: costo del ciclo de vida, indicadores de mantenimiento y presupuesto público.",
+    "30. Mantenimiento preventivo, predictivo y centrado en la confiabilidad (RCM) de la flota policial ecuatoriana.",
+    "31. Gestión de almacenes y cadena de suministro de repuestos en el sector público, control de inventarios y rotación.",
+    "32. Seguridad industrial y salud ocupacional en talleres mecánicos policiales (normativa del Ministerio del Trabajo, IESS).",
+    "33. Ergonomía y biomecánica en puestos de conducción de patrulleros y motocicletas, considerando el equipo reglamentario.",
+    "34. Logística de mantenimiento en unidades distribuidas: destacamentos en zonas rurales y fronterizas del Ecuador.",
+    "35. Energías alternativas y sistemas fotovoltaicos de respaldo en puestos fronterizos aislados.",
+    "36. Generación y distribución de energía eléctrica de emergencia (grupos electrógenos) en instalaciones policiales críticas.",
+    "37. Refrigeración para conservación de evidencias biológicas (cámaras frigoríficas y cadena de frío).",
+    "38. Aire acondicionado y ventilación en armerías y polvorines (control de temperatura, humedad y gases).",
+    "39. Mecatrónica en sistemas automatizados de vigilancia, barreras perimetrales y drones policiales.",
+    "40. Robótica móvil y manipuladores teleoperados para desactivación de explosivos.",
+    "41. Diseño asistido por computador (CAD) y fabricación asistida (CAM) para piezas de reparación rápida en talleres institucionales.",
+    "42. Simulación por elementos finitos (FEM) en análisis estructural de componentes críticos (enganches de remolque, soportes de armamento).",
+    "43. Reconstrucción de accidentes de tránsito: aplicación de principios de dinámica, energía de deformación y huellas de frenado (peritaje).",
+    "44. Peritaje de vehículos: inspección mecánica en casos de delitos (alteración de seriales, siniestralidad fraudulenta).",
+    "45. Normativa ambiental ecuatoriana para talleres mecánicos: manejo de aceites usados, residuos peligrosos y emisiones.",
+    "46. Fiscalización de emisiones contaminantes de la flota policial y cumplimiento de límites según normativa nacional (NTE INEN 2207).",
+    "47. Gestión de calidad según ISO 9001 en los procesos de mantenimiento y abastecimiento mecánico institucional.",
+    "48. Pensamiento crítico y toma de decisiones basada en datos: análisis de costos de reparación vs. reemplazo en el sector público.",
+    "49. Innovación con restricciones presupuestarias: desarrollo de adaptaciones mecánicas de bajo costo para mejorar la operatividad.",
+    "50. Ética y transparencia en la gestión de recursos públicos mecánicos: prevención de corrupción en compras y contrataciones, control de repuestos sobrevalorados."
+    ],
+    'Ingeniería Automotriz': [
+    "1. Motores de combustión interna Otto y Diésel: curvas características y emisiones.",
+    "2. Sistemas de inyección electrónica y detección de fallas OBD-II.",
+    "3. Turboalimentación en motores policiales: compensación en altura.",
+    "4. Transmisiones automáticas y manuales en vehículos de patrulla.",
+    "5. Frenos ABS y control de estabilidad en situaciones de emergencia.",
+    "6. Suspensiones reforzadas para vehículos blindados: comportamiento dinámico.",
+    "7. Chasis y bastidores: fatiga en ciclos de operación policial.",
+    "8. Neumáticos run-flat y sistemas de presión en persecuciones.",
+    "9. Diagnóstico de fallas con osciloscopio y scanner automotriz.",
+    "10. Sistemas de carga y arranque en climas fríos de altura.",
+    "11. Refrigeración de motores en patrullajes prolongados a baja velocidad.",
+    "12. Combustibles alternativos (GNV, GLP) en flotas estatales.",
+    "13. Ensayos de emisiones contaminantes según NTE INEN 2207.",
+    "14. Sensores y actuadores: funcionamiento y diagnóstico.",
+    "15. Red CAN bus en vehículos tácticos: interpretación de tramas.",
+    "16. Sistemas de iluminación adaptativa y sirenas: interferencias eléctricas.",
+    "17. Mantenimiento predictivo por análisis de vibraciones en motor.",
+    "18. Tribología y lubricantes para motores sometidos a alto estrés.",
+    "19. Gestión electrónica de motor (ECU) y reprogramación para altura.",
+    "20. Baterías de iones de litio en vehículos híbridos policiales.",
+    "21. Normativa INEN de casquillos, vidrios de seguridad y blindaje.",
+    "22. Metrología automotriz: alineación, balanceo y calibración.",
+    "23. Hidráulica de dirección asistida y electrohidráulica.",
+    "24. Climatización en vehículos de transporte de detenidos.",
+    "25. Sistemas de escape catalítico y DPF en motores diésel.",
+    "26. Peritaje de accidentes de tránsito: dinámica y deformaciones.",
+    "27. Electrónica de seguridad pasiva (airbags, pretensores).",
+    "28. Vehículos eléctricos e híbridos enchufables en la institución.",
+    "29. Reciclaje de vehículos fuera de servicio y gestión ambiental.",
+    "30. Motocicletas policiales: mantenimiento de alta cilindrada.",
+    "31. Normas ISO 9001 en talleres de servicio automotriz policial.",
+    "32. Control de inventarios de repuestos críticos (política ABC).",
+    "33. Costos de ciclo de vida de la flota vehicular (TCO).",
+    "34. Subasta inversa para adquisición de vehículos (LOSNCP).",
+    "35. Blindaje de panel de piso contra explosivos improvisados.",
+    "36. Ensayos no destructivos en uniones soldadas de chasis blindado.",
+    "37. Vibraciones y confort en vehículos de patrullaje rural.",
+    "38. Diseño de soportes para equipo táctico en cabina.",
+    "39. Software de diagnóstico (Autodata, Bosch ESI[tronic]) en flotas.",
+    "40. Gestión de residuos peligrosos (aceites, baterías) según MAE.",
+    "41. Ergonomía del puesto de conducción con chaleco balístico.",
+    "42. Protocolos de inspección técnica vehicular (RTV) en Ecuador.",
+    "43. Ayudas electrónicas a la conducción (ADAS) en patrullas.",
+    "44. Materiales compuestos en carrocerías de furgones celulares.",
+    "45. Soldadura de aceros avanzados (AHSS) en refuerzos estructurales.",
+    "46. Análisis de fallas en sistemas de inyección diésel por azufre alto.",
+    "47. Transformación de vehículos comerciales a uso policial (NFPA 1901).",
+    "48. Telemetría y monitoreo remoto de flotas (GPS/CAN).",
+    "49. Capacitación técnica del personal de talleres móviles.",
+    "50. Evaluación de ofertas técnicas en licitaciones de vehículos."
+    ]
+  };
+
+  // Banco de casos pregenerados (uno por carrera)
+  const CASOS_BANK = {
+    'Ingeniería Civil': {
+      enunciado: `Usted es ingeniero civil especialista de la Dirección Nacional de Logística. Se debe construir un cuartel tipo en la provincia de Morona Santiago (zona de alta sismicidad y fuertes lluvias). El terreno presenta un suelo limo-arcilloso con capacidad portante de 0.8 kg/cm². El proyecto incluye un polvorín subterráneo y una torre de vigilancia de 15 m. Se cuenta con un presupuesto ajustado y se deben respetar las normas NEC y LOSNCP. Se reciben dos ofertas: una con cimentación superficial mejorada y otra con pilotes.`,
+      preguntas: [
+        "1. Evalúe ambas soluciones de cimentación considerando la sismicidad, el tipo de suelo y el costo.",
+        "2. Detalle las verificaciones estructurales necesarias para la torre de vigilancia bajo cargas de viento y sismo.",
+        "3. ¿Qué artículos de la LOSNCP aplicaría para la adjudicación y fiscalización de esta obra, garantizando transparencia?"
+      ],
+      solucion: `Solución técnica:\n1. La cimentación superficial mejorada con compactación dinámica y geotextil podría ser suficiente si se aumenta la profundidad y se emplea una losa rigidizadora. Sin embargo, el suelo limo-arcilloso saturado puede licuarse durante un sismo. La opción de pilotes hincados hasta estrato firme es más segura sísmica pero más costosa. Dado el presupuesto limitado, se recomienda la cimentación superficial con mejoramiento del terreno y una superestructura liviana, siempre que el estudio de sitio descarte licuación. Se debe cumplir la NEC-SE-CM y DS.\n2. Torre de 15 m: análisis espectral sísmico según NEC-SE-DS, considerando factor de importancia para instalaciones esenciales. Cargas de viento según NEC-SE-VIVIENTO para la zona. Verificar desplazamiento lateral, estabilidad global y fatiga en anclajes.\n3. LOSNCP: artículos 60 (evaluación de ofertas) y 64 (rechazo) si una oferta no cumple técnico. Art. 69 para fiscalización y cumplimiento del contrato. Se debe nombrar un administrador de contrato y elaborar informes periciales para cada desembolso.`
+    },
+    'Ingeniería Industrial': {
+      enunciado: `La Policía Nacional adquirirá 5000 uniformes tácticos. Usted, como ingeniero industrial, debe diseñar el proceso de recepción, control de calidad y distribución a 30 comandos provinciales. El proveedor ha presentado un lote piloto con defectos en costuras. La normativa aplicable es ISO 2859 e INEN. También se debe optimizar el gasto público bajo la LOSNCP.`,
+      preguntas: [
+        "1. ¿Qué plan de muestreo aplicaría para inspeccionar los uniformes? ¿Bajo qué NCA?",
+        "2. Si el lote piloto presenta 12% de defectuosos, ¿cómo procedería según la norma y cómo evitaría corrupción?",
+        "3. Proponga un sistema de distribución logística que minimice el tiempo de entrega y los costos, considerando la geografía ecuatoriana."
+      ],
+      solucion: `Solución técnica:\n1. Se emplearía un plan de muestreo simple según ISO 2859-1, NCA de 2.5% para un nivel de inspección general II. Tamaño de lote: 5000 unidades, código letra L, tamaño de muestra 200, número de aceptación 10, rechazo 11.\n2. Con un 12% de defectuosos (24 en muestra de 200) se rechaza el lote. Se notifica al proveedor y se activa la cláusula de garantía. Para prevenir corrupción, se aplica el principio de transparencia de la LOSNCP, se conforma una comisión de recepción con veedor ciudadano y se documentan todos los hallazgos con fotografía y actas.\n3. Distribución: se usará un centro de consolidación en Quito y dos hubs regionales (Guayaquil y Cuenca). Envíos semanales consolidados por ruta, optimizando carga. Para zonas fronterizas, se emplearán empresas de transporte locales con seguimiento GPS. El modelo de costo mínimo se basa en programación lineal de transporte.`
+    },
+    'Ingeniería Mecánica': {
+      enunciado: `La Dirección de Logística requiere 45 camionetas 4x4 para patrullaje en Morona Santiago, Chimborazo y Esmeraldas (altura hasta 3800 m, diésel alto azufre >500 ppm). Dos ofertas: A con motor diésel common-rail ≤50 ppm, B con motor gasolina aspirado. Aplicar conocimientos de motores, LOSNCP y doctrina.`,
+      preguntas: [
+        "1. Analice el efecto de la altura en ambos motores y la influencia del combustible en la vida útil.",
+        "2. ¿Se puede rechazar la oferta A por falta de diésel adecuado? Fundamente con la LOSNCP.",
+        "3. Calcule conceptualmente el costo total de propiedad a 5 años e indique cuál conviene al interés público."
+      ],
+      solucion: `Solución técnica:\n1. Altura: densidad del aire cae un 65% a 3800 m. Motor aspirado (B) pierde ≈30 HP, queda con torque escaso para pendientes. Motor turbo (A) compensa parcialmente y mantiene 350 Nm a bajas rpm, ideal para terreno andino. Combustible: diésel alto azufre (>500 ppm) en sistema common-rail forma ácidos que corroen inyectores y reducen su vida hasta un 80% (ISO 12156). No habiendo diésel ≤50 ppm en las zonas, el motor A es inutilizable. Gasolina súper está disponible nacionalmente.\n2. Rechazo: LOSNCP art. 62 permite declarar oferta inconveniente si no se ajusta a la realidad operativa. Además el art. 64.2 faculta rechazar ofertas que no cumplan requisitos mínimos; la disponibilidad del combustible es un requisito implícito. Se debe documentar con mapa de estaciones de servicio y norma INEN 1489.\n3. TCO: A: menor adquisición y consumo, pero costos de mantenimiento y paro muy altos por fallos de inyección, disponibilidad <80%. B: mayor compra y consumo, pero bajo mantenimiento y alta disponibilidad. Costo de paro diario ≈$300. A 5 años, B es mucho más económica para el Estado y alinea con la doctrina de disponibilidad operativa.`
+    },
+    'Ingeniería Automotriz': {
+      enunciado: `Se va a adquirir 20 patrulleros para la sierra centro (altitud 2800-3500 m). Se presentan dos opciones: una SUV con motor turbo gasolina 2.0L y otra pickup diésel 2.8L aspirada. Evalúe desempeño, emisiones y mantenimiento. Además, la LOSNCP y normativa INEN automotriz.`,
+      preguntas: [
+        "1. Compare el comportamiento de ambos motores en altura, considerando la relación estequiométrica y la potencia disponible.",
+        "2. ¿Qué normas INEN debe cumplir el vehículo y cómo verificaría su conformidad en la recepción?",
+        "3. Si la SUV turbo requiere gasolina de 98 octanos y solo hay súper (92) en zonas rurales, ¿puede rechazarse la oferta? Justifique con la LOSNCP."
+      ],
+      solucion: `Solución técnica:\n1. La SUV turbo compensa la altitud, manteniendo su potencia casi constante. La pickup diésel aspirada pierde ≈25% de potencia, quedando con bajo torque a altas rpm, inadecuada para arranques en pendiente. El turbo también mejora la mezcla estequiométrica. Emisiones: la SUV con catalizador y sonda lambda funciona correctamente; la diésel aspirada generará humo negro por falta de oxígeno.\n2. Deben cumplir NTE INEN 034 (vidrios), 1669 (cinturones), 2207 (emisiones), y la RTE INEN 011 (homologación vehicular). En recepción se exige certificado de conformidad y se realizan ensayos de emisiones con analizador de gases en el taller institucional.\n3. Sí, se puede rechazar porque la operatividad real exige combustible disponible. La LOSNCP art. 62 (oferta inconveniente) y art. 64.2 (incumplimiento de requisitos implícitos). Se debe adjuntar evidencia de las estaciones de servicio de la zona y la ficha técnica del motor.`
+    }
+  };
+
+  // === ESTADO GLOBAL DE LA SESIÓN ===
+  let currentUser = null;            // { cedula, carrera }
+  let currentCase = null;           // objeto con enunciado, preguntas, solucion
+  let modelAnswerVisible = false;
+
+  // ============ FUNCIONES DE INTERFAZ ============
+  function showAccessScreen() {
+    document.getElementById('accessScreen').style.display = 'flex';
+    document.getElementById('mainPanel').style.display = 'none';
+    document.getElementById('cedulaInput').value = '';
+    document.getElementById('carreraSelect').value = '';
+    document.getElementById('loginError').textContent = '';
+  }
+
+  function showMainPanel() {
+    document.getElementById('accessScreen').style.display = 'none';
+    document.getElementById('mainPanel').style.display = 'block';
+    document.getElementById('careerDisplay').textContent = currentUser.carrera;
+    document.getElementById('careerTemarioTitle').textContent = currentUser.carrera;
+    renderTemario();
+    resetCase();
+    document.getElementById('userAnswer').value = '';
+    document.getElementById('modelAnswerBox').style.display = 'none';
+    document.getElementById('feedbackBox').style.display = 'none';
+  }
+
+  function resetCase() {
+    currentCase = null;
+    document.getElementById('caseContent').innerHTML = 'Presione "Crear caso práctico" para comenzar.';
+    document.getElementById('modelAnswerBox').style.display = 'none';
+    document.getElementById('feedbackBox').style.display = 'none';
+  }
+
+  // ============ AUTENTICACIÓN ============
+  function login() {
+    const cedula = document.getElementById('cedulaInput').value.trim();
+    const carrera = document.getElementById('carreraSelect').value;
+    const errorDiv = document.getElementById('loginError');
+    errorDiv.textContent = '';
+
+    if (!cedula || !carrera) {
+      errorDiv.textContent = 'Complete todos los campos.';
+      return;
+    }
+
+    const found = ALLOWED_USERS.find(u => u.cedula === cedula && u.carrera === carrera);
+    if (found) {
+      currentUser = found;
+      showMainPanel();
+    } else {
+      errorDiv.textContent = 'Cédula o carrera no autorizada.';
+    }
+  }
+
+  function logout() {
+    currentUser = null;
+    showAccessScreen();
+  }
+
+  // ============ TEMARIO ============
+  function renderTemario(filter = '') {
+    const container = document.getElementById('temarioContainer');
+    if (!currentUser) return;
+    const temas = TEMARIOS[currentUser.carrera] || [];
+    const filtered = temas.filter(t => t.toLowerCase().includes(filter.toLowerCase()));
+    container.innerHTML = filtered.map(t => `<div class="temario-item">${t}</div>`).join('');
+  }
+
+  function filterTemas() {
+    const text = document.getElementById('searchTema').value;
+    renderTemario(text);
+  }
+
+  // ============ CASO PRÁCTICO ============
+  function loadCaseFromBank() {
+    if (!currentUser) return;
+    const bankCase = CASOS_BANK[currentUser.carrera];
+    if (!bankCase) {
+      document.getElementById('caseContent').innerHTML = 'No hay caso precargado para esta carrera. Use "Nuevo caso con IA".';
+      return;
+    }
+    currentCase = bankCase;
+    displayCase(bankCase);
+  }
+
+  function displayCase(caseObj) {
+    const html = `
+      <p><strong>Contexto operacional:</strong></p>
+      <p>${caseObj.enunciado}</p>
+      <p><strong>Preguntas:</strong></p>
+      <ol>${caseObj.preguntas.map(p => `<li>${p}</li>`).join('')}</ol>
+    `;
+    document.getElementById('caseContent').innerHTML = html;
+    document.getElementById('modelAnswerBox').style.display = 'none';
+    document.getElementById('feedbackBox').style.display = 'none';
+  }
+
+  async function generateCaseWithAI() {
+    if (!currentUser) return;
+    document.getElementById('caseLoading').style.display = 'block';
+    try {
+      const temas = TEMARIOS[currentUser.carrera].join('\n');
+      const prompt = `Eres un experto evaluador de la Policía Nacional del Ecuador. Genera un caso práctico para un ingeniero especialista en ${currentUser.carrera}. El caso debe basarse en el siguiente temario (50 temas):\n${temas}\nCombina la ingeniería con doctrina policial, administración pública ecuatoriana (LOSNCP) y pensamiento crítico. Proporciona un contexto operacional realista, 3 preguntas técnicas y la respuesta técnica detallada. Devuelve la respuesta en formato JSON con exactamente los siguientes campos: "enunciado" (texto), "preguntas" (array de strings) y "solucion" (texto). No incluyas explicaciones adicionales. Solo el JSON.`;
+
+      const response = await callDeepSeek([
+        { role: 'system', content: 'Eres un generador de casos prácticos. Responde SOLO con un objeto JSON válido, sin markdown alrededor.' },
+        { role: 'user', content: prompt }
+      ], 0.5, 2000);
+
+      // Intentar parsear la respuesta
+      let jsonStr = response.trim();
+      // Si viene con bloque markdown, limpiar
+      if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/```json|```/g, '').trim();
+      }
+      const caseData = JSON.parse(jsonStr);
+      if (caseData.enunciado && caseData.preguntas && caseData.solucion) {
+        currentCase = caseData;
+        displayCase(caseData);
+      } else {
+        throw new Error('Formato de caso inválido');
+      }
+    } catch (e) {
+      console.error(e);
+      document.getElementById('caseContent').innerHTML = `<p>Error al generar caso con IA. ${e.message}</p>`;
+      currentCase = null;
+    } finally {
+      document.getElementById('caseLoading').style.display = 'none';
+    }
+  }
+
+  // ============ RESPUESTA MODELO Y EVALUACIÓN ============
+  function showModelAnswer() {
+    if (!currentCase) {
+      alert('Primero debe crear un caso práctico.');
+      return;
+    }
+    const box = document.getElementById('modelAnswerBox');
+    document.getElementById('modelAnswerContent').innerHTML = `<pre>${currentCase.solucion}</pre>`;
+    box.style.display = 'block';
+    document.getElementById('feedbackBox').style.display = 'none';
+    modelAnswerVisible = true;
+  }
+
+  async function reviewMyAnswer() {
+    if (!currentCase) { alert('No hay caso práctico activo.'); return; }
+    const userText = document.getElementById('userAnswer').value.trim();
+    if (!userText) { alert('Escriba su respuesta antes de solicitar revisión.'); return; }
+    if (!modelAnswerVisible) {
+      alert('Primero haga clic en "Ver respuesta técnica" para visualizar la solución modelo.');
+      return;
+    }
+
+    document.getElementById('feedbackLoading').style.display = 'block';
+    document.getElementById('feedbackBox').style.display = 'none';
+    try {
+      const prompt = `Eres un instructor experto de la Policía Nacional del Ecuador. Debes evaluar la respuesta de un aspirante a especialista en ${currentUser.carrera}.
+
+Caso práctico:
+${currentCase.enunciado}
+Preguntas:
+${currentCase.preguntas.join('\n')}
+
+Respuesta modelo (correcta):
+${currentCase.solucion}
+
+Respuesta del aspirante:
+${userText}
+
+Realiza una evaluación TÉCNICA, señalando aciertos y errores concretos. Sé constructivo, no condescendiente. Indica si hay omisiones, imprecisiones o malentendidos de principios de ingeniería, doctrina policial o legislación. Al final, sugiere qué temas del temario debería repasar. Máximo 500 palabras.`;
+
+      const feedback = await callDeepSeek([
+        { role: 'system', content: 'Eres un instructor evaluador. Responde con texto claro y constructivo.' },
+        { role: 'user', content: prompt }
+      ], 0.7, 1000);
+
+      document.getElementById('feedbackContent').innerHTML = `<pre style="white-space: pre-wrap;">${feedback}</pre>`;
+      document.getElementById('feedbackBox').style.display = 'block';
+    } catch (e) {
+      document.getElementById('feedbackContent').innerHTML = `<p style="color:red;">Error al obtener evaluación: ${e.message}</p>`;
+      document.getElementById('feedbackBox').style.display = 'block';
+    } finally {
+      document.getElementById('feedbackLoading').style.display = 'none';
+    }
+  }
+
+  // ============ API DEEPSEEK ============
+  async function callDeepSeek(messages, temperature = 0.7, maxTokens = 2000) {
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: messages,
+        temperature: temperature,
+        max_tokens: maxTokens
+      })
+    });
+    if (!resp.ok) {
+      const errBody = await resp.text();
+      throw new Error(`API error ${resp.status}: ${errBody}`);
+    }
+    const data = await resp.json();
+    return data.choices[0].message.content;
+  }
+
+  // ============ INICIO ============
+  showAccessScreen(); // Por defecto muestra login
+</script>
+</body>
+</html>
