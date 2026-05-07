@@ -493,21 +493,31 @@ const MODEL = 'deepseek-v4-pro'; // DeepSeek V4 Pro (versión costosa)
       const response = await callDeepSeek([
         { role: 'system', content: 'Eres un generador de casos prácticos. Responde SOLO con un objeto JSON válido, sin markdown alrededor.' },
         { role: 'user', content: prompt }
-      ], 0.5, 2000);
+      ], 0.5, 6000);
 
       // Intentar parsear la respuesta
-      let jsonStr = response.trim();
-      // Si viene con bloque markdown, limpiar
-      if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.replace(/```json|```/g, '').trim();
-      }
-      const caseData = JSON.parse(jsonStr);
-      if (caseData.enunciado && caseData.preguntas && caseData.solucion) {
-        currentCase = caseData;
-        displayCase(caseData);
-      } else {
-        throw new Error('Formato de caso inválido');
-      }
+let jsonStr = response.trim();
+
+// Si viene con bloque markdown ```json ... ```, extraer solo el contenido
+const fenceMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+if (fenceMatch) {
+  jsonStr = fenceMatch[1].trim();
+}
+
+// Si aún no empieza por '{', buscar la primera llave
+const firstBrace = jsonStr.indexOf('{');
+if (firstBrace > 0) {
+  jsonStr = jsonStr.substring(firstBrace);
+}
+
+// Intentar parsear
+const caseData = JSON.parse(jsonStr);
+if (caseData.enunciado && caseData.preguntas && caseData.solucion) {
+  currentCase = caseData;
+  displayCase(caseData);
+} else {
+  throw new Error('Formato de caso inválido');
+}
     } catch (e) {
       console.error(e);
       document.getElementById('caseContent').innerHTML = `<p>Error al generar caso con IA. ${e.message}</p>`;
