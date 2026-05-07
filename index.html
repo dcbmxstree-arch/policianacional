@@ -493,7 +493,7 @@ const MODEL = 'deepseek-v4-pro'; // DeepSeek V4 Pro (versión costosa)
       const response = await callDeepSeek([
         { role: 'system', content: 'Eres un generador de casos prácticos. Responde SOLO con un objeto JSON válido, sin markdown alrededor.' },
         { role: 'user', content: prompt }
-      ], 0.5, 6000);
+      ], 0.5, 10000);
 
       // Intentar parsear la respuesta
 let jsonStr = response.trim();
